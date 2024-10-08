@@ -37,17 +37,11 @@ type PickupRequest record {
     WasteType wasteType;
     string description?;
     Size size;
-    string requestedDate;
     string serviceProviderId?;
     string scheduledDate?;
     string userId?;
     RequestStatus status?;
-    Location location;
-};
-
-type Location record {
-    string locationType = "Point";
-    decimal[] coordinates;
+    decimal[] location;
 };
 
 final mongodb:Client mongoDb = check new ({
@@ -92,7 +86,6 @@ service /pickupRequest on new http:Listener(9091) {
 
     // new request
     resource function post newRequest(PickupRequest input, http:Caller caller, http:Request req) returns error? {
-        io:println("Received PickupRequest: ", input.toJsonString());
 
         string|http:HeaderNotFoundError authHeaderResult = req.getHeader("Authorization");
 
@@ -109,7 +102,6 @@ service /pickupRequest on new http:Listener(9091) {
                 wasteType: input.wasteType,
                 description: input.description,
                 size: input.size,
-                requestedDate: input.requestedDate,
                 status: PENDING,
                 userId: userId,
                 location: input.location

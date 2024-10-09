@@ -36,13 +36,13 @@ type PickupRequest record {
     string id?;
     WasteType wasteType;
     string description?;
-    Size size;
-    string requestedDate;
+    Size size;  
     string serviceProviderId?;
     string scheduledDate?;
     string userId?;
     RequestStatus status?;
     decimal[] location;
+    string completedDate?;
 };
 
 type userInput record {
@@ -246,6 +246,94 @@ service /providerService on new http:Listener(9092) {
             return error("Application error: " + result.message());
         } else {
             return error("Unexpected error occurred while fetching data");
+        }
+    }
+
+    //get accepted requests
+    resource function get acceptedRequests(http:Caller caller, http:Request req) returns error? {
+        string|http:HeaderNotFoundError authHeaderResult = req.getHeader("Authorization");
+
+        if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
+            string token = authHeaderResult.substring(7);
+            string providerId = check decodeToken(token);
+
+            mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
+
+            map<json> filter = {
+                "serviceProviderId": providerId,
+                "status": "SCHEDULED"
+            };
+
+            var result = pickupRequestsCollection->find(filter, {}, {}, PickupRequest);
+
+            if result is stream<PickupRequest, error?> {
+                PickupRequest[] acceptedRequests = [];
+
+                error? e = result.forEach(function(PickupRequest request) {
+                    acceptedRequests.push(request);
+                });
+
+                if e is error {
+                    return error("Error occurred while processing results: " + e.message());
+                }
+
+                check result.close();
+                check caller->respond(acceptedRequests);
+            } else if result is mongodb:DatabaseError {
+                return error("Database error: " + result.message());
+            } else if result is mongodb:ApplicationError {
+                return error("Application error: " + result.message());
+            } else {
+                return error("Unexpected error occurred while fetching data");
+            }
+        } else if authHeaderResult is http:HeaderNotFoundError {
+            return error("Authorization header is missing");
+        } else {
+            return error("Authorization header is invalid");
+        }
+    }
+
+    //get completed requests
+    resource function get completedRequests(http:Caller caller, http:Request req) returns error? {
+        string|http:HeaderNotFoundError authHeaderResult = req.getHeader("Authorization");
+
+        if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
+            string token = authHeaderResult.substring(7);
+            string providerId = check decodeToken(token);
+
+            mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
+
+            map<json> filter = {
+                "serviceProviderId": providerId,
+                "status": "COMPLETED"
+            };
+
+            var result = pickupRequestsCollection->find(filter, {}, {}, PickupRequest);
+
+            if result is stream<PickupRequest, error?> {
+                PickupRequest[] completedRequests = [];
+
+                error? e = result.forEach(function(PickupRequest request) {
+                    completedRequests.push(request);
+                });
+
+                if e is error {
+                    return error("Error occurred while processing results: " + e.message());
+                }
+
+                check result.close();
+                check caller->respond(completedRequests);
+            } else if result is mongodb:DatabaseError {
+                return error("Database error: " + result.message());
+            } else if result is mongodb:ApplicationError {
+                return error("Application error: " + result.message());
+            } else {
+                return error("Unexpected error occurred while fetching data");
+            }
+        } else if authHeaderResult is http:HeaderNotFoundError {
+            return error("Authorization header is missing");
+        } else {
+            return error("Authorization header is invalid");
         }
     }
 

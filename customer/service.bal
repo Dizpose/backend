@@ -49,7 +49,6 @@ service /users on new http:Listener(9090) {
         mongodb:Collection usersCollection = check self.db->getCollection("Users");
         string userId = uuid:createType1AsString();
 
-        // Hash the password before saving to the DB
         string dataString = input.password;
         byte[] data = dataString.toBytes();
         byte[] hashedData = crypto:hashSha256(data);
@@ -60,8 +59,8 @@ service /users on new http:Listener(9090) {
             name: input.name,
             email: input.email,
             phone: input.phone,
+            address: input.address,
             password: hashedPassword
-            //roles: input.roles
         };
 
         check usersCollection->insertOne(user);
@@ -69,7 +68,6 @@ service /users on new http:Listener(9090) {
     }
 
     // User login 
-    
     resource function post login(LoginInput input) returns json|error {
         mongodb:Collection usersCollection = check self.db->getCollection("Users");
 
@@ -95,7 +93,7 @@ service /users on new http:Listener(9090) {
         jwt:IssuerConfig issuerConfig = {
             username: user.id,
             issuer: "buddhi",
-            audience: "user-service",
+            audience: "customer",
             expTime: 2592000,
             signatureConfig: {
                 config: {
@@ -108,7 +106,7 @@ service /users on new http:Listener(9090) {
         string jwtToken = check jwt:issue(issuerConfig);
 
 
-        return {message: "Login successful", token: jwtToken, user: {id: user.id, name: user.name, email: user.email, phone: user.phone }};
+        return {message: "Login successful", token: jwtToken, user: {id: user.id, name: user.name, email: user.email, phone: user.phone, address: user.address }};
     }
 
     @http:ResourceConfig {
@@ -116,7 +114,7 @@ service /users on new http:Listener(9090) {
             {
                 jwtValidatorConfig: {
                     issuer: "buddhi",
-                    audience: "user-service",
+                    audience: "customer",
                     signatureConfig: {
                         certFile: "resources/public.crt"
                     }
@@ -146,7 +144,7 @@ service /users on new http:Listener(9090) {
             {
                 jwtValidatorConfig: {
                     issuer: "buddhi",
-                    audience: "user-service",
+                    audience: "customer",
                     signatureConfig: {
                         certFile: "resources/public.crt"
                     }
@@ -159,38 +157,31 @@ service /users on new http:Listener(9090) {
     resource function put [string id](UserInput input) returns string|error {
     mongodb:Collection usersCollection = check self.db->getCollection("Users");
 
-    // Create a map to store the fields to update
+
     map<string> updateFields = {};
 
-    // Update name if provided
     if input.name != "" {
         updateFields["name"] = input.name;
     }
-
-    // Update email if provided
     if input.email != "" {
         updateFields["email"] = input.email;
     }
-
-    // Update phone if provided
     if input.phone != "" {
         updateFields["phone"] = input.phone;
     }
-
-    // Update password if provided (hash it before storing)
+    if input.address != "" {
+        updateFields["address"] = input.address;
+    }
     if input.password != "" {
         updateFields["password"] = input.password;
     }
-
-    // Ensure there are fields to update
     if updateFields.length() == 0 {
         return error("No fields provided for update.");
     }
 
-    // Proceed to update the user document in the database
     var updateResult = check usersCollection->updateOne(
-        {"id": id},  // Filter by user ID
-        {"set": updateFields}  // Set only the fields that were provided
+        {"id": id},  
+        {"set": updateFields} 
     );
 
     if updateResult.matchedCount > 0 {
@@ -205,7 +196,7 @@ service /users on new http:Listener(9090) {
             {
                 jwtValidatorConfig: {
                     issuer: "buddhi",
-                    audience: "user-service",
+                    audience: "customer",
                     signatureConfig: {
                         certFile: "resources/public.crt"
                     }
@@ -228,13 +219,12 @@ service /users on new http:Listener(9090) {
     }
 }
 
-// Define input types
 type UserInput record {
     string name;
     string email;
     string phone;
     string password;
-    //string[] roles;
+    string address;
 };
 
 type LoginInput record {
@@ -242,13 +232,11 @@ type LoginInput record {
     string password;
 };
 
-// Define the User type
 type User record {
     string id;
     string name;
     string email;
     string phone;
     string password;
-    // Stored as a hashed value
-    //string[] roles;
+    string address;
 };

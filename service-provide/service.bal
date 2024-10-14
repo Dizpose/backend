@@ -74,7 +74,7 @@ final mongodb:Client mongoDb = check new ({
         {
             jwtValidatorConfig: {
                 issuer: "buddhi",
-                audience: "provider-service",
+                audience: "service-provider",
                 signatureConfig: {
                     certFile: "resources/public.crt"
                 }

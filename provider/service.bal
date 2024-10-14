@@ -1,14 +1,6 @@
-// customer service is for handling customer registration and login. 
-// The service is secured with JWT authentication.
-// Resources are:
-//     - register: User registration
-//     - login: User login
-//     - get: Get user by ID
-//     - put: Update user by ID
-//     - delete: Delete user by ID
-
 import ballerina/crypto;
 import ballerina/http;
+import ballerina/io;
 import ballerina/jwt;
 import ballerina/uuid;
 import ballerinax/mongodb;
@@ -24,7 +16,6 @@ configurable string secret_key = "TZiq/jhpastYzsB7F042qlg/n5BjUvIur76i5O1Z4iw=";
 
 configurable string privateKeyFile = "resources/private.key";
 
-// MongoDB client setup
 final mongodb:Client mongoDb = check new ({
     connection: {
         serverAddress: {
@@ -46,63 +37,65 @@ final mongodb:Client mongoDb = check new ({
     }
 }
 
-service /users on new http:Listener(9090) {
+service /providers on new http:Listener(9093) {
     private final mongodb:Database db;
 
     function init() returns error? {
         self.db = check mongoDb->getDatabase("DizposeDB");
     }
 
-    // User registration
-    resource function post register(UserInput input) returns string|error {
-        mongodb:Collection usersCollection = check self.db->getCollection("Users");
-        string userId = uuid:createType1AsString();
+    // Provider registration
+    resource function post register(ProviderInput input) returns string|error {
+
+        mongodb:Collection providersCollection = check self.db->getCollection("ServiceProviders");
+        string providerId = uuid:createType1AsString();
 
         string dataString = input.password;
         byte[] data = dataString.toBytes();
         byte[] hashedData = crypto:hashSha256(data);
         string hashedPassword = hashedData.toBase64();
 
-        User user = {
-            id: userId,
+        Provider provider = {
+            id: providerId,
             name: input.name,
             email: input.email,
+            password: hashedPassword,
             phone: input.phone,
             address: input.address,
-            password: hashedPassword
+            servicesOffered: input.servicesOffered,
+            location: input.location
         };
 
-        check usersCollection->insertOne(user);
-        return string `User ${input.name} registered successfully`;
+        check providersCollection->insertOne(provider);
+        return string `Provider ${input.name} registered successfully`;
     }
 
-    // User login 
+    // Provider login
     resource function post login(LoginInput input) returns json|error {
-        mongodb:Collection usersCollection = check self.db->getCollection("Users");
+        mongodb:Collection providersCollection = check self.db->getCollection("ServiceProviders");
 
-        stream<User, error?> resultStream = check usersCollection->find({
+        stream<Provider, error?> resultStream = check providersCollection->find({
             email: input.email
         });
-
-        record {User value;}|error? result = resultStream.next();
+        record {Provider value;}|error? result = resultStream.next();
+        io:println("Provider Result: ", result);
 
         if result is error? {
             return error(string `Invalid credentials: User with email ${input.email} not found.`);
         }
 
-        User user = result.value;
+        Provider provider = result.value;
 
         string inputPasswordHashed = crypto:hashSha256(input.password.toBytes()).toBase64();
 
-        // Verify password
-        if user.password != inputPasswordHashed {
-            return error("Invalid credentials: Incorrect password.");
+        if provider.password != inputPasswordHashed {
+            return error("Invalid credentials: Incorrect password");
         }
 
         jwt:IssuerConfig issuerConfig = {
-            username: user.id,
+            username: provider.id,
             issuer: "buddhi",
-            audience: "customer",
+            audience: "provider",
             expTime: 2592000,
             signatureConfig: {
                 config: {
@@ -111,10 +104,9 @@ service /users on new http:Listener(9090) {
             }
         };
 
-        //issue jwt
         string jwtToken = check jwt:issue(issuerConfig);
 
-        return {message: "Login successful", token: jwtToken, user: {id: user.id, name: user.name, email: user.email, phone: user.phone, address: user.address}};
+        return {message: "Login successful", jwt: jwtToken, user: {id: provider.id, name: provider.name, email: provider.email, phone: provider.phone, address: provider.address, servicesOffered: provider.servicesOffered, location: provider.location}};
     }
 
     @http:ResourceConfig {
@@ -122,7 +114,7 @@ service /users on new http:Listener(9090) {
             {
                 jwtValidatorConfig: {
                     issuer: "buddhi",
-                    audience: "customer",
+                    audience: "provider",
                     signatureConfig: {
                         certFile: "resources/public.crt"
                     }
@@ -131,20 +123,25 @@ service /users on new http:Listener(9090) {
         ]
     }
 
-    // Get user by ID
-    resource function get [string id]() returns User|error {
-        mongodb:Collection usersCollection = check self.db->getCollection("Users");
+    //get provider by id
+    resource function get [string id](http:Caller caller, http:Request req) returns error? {
+        mongodb:Collection usersCollection = check self.db->getCollection("ServiceProviders");
 
-        stream<User, error?> resultStream = check usersCollection->find({
-            id: id
-        });
+        map<json> filter = {
+            "id": id
+        };
 
-        record {User value;}|error? result = resultStream.next();
+        var result = usersCollection->findOne(filter, {}, {}, Provider);
 
-        if result is error? {
-            return error(string `Cannot find the user with id: ${id}`);
+        if result is Provider {
+            check caller->respond(result);
+        } else if result is mongodb:DatabaseError {
+            return error("Database error: " + result.message());
+        } else if result is mongodb:ApplicationError {
+            return error("Application error: " + result.message());
+        } else {
+            return error("User not found");
         }
-        return result.value;
     }
 
     @http:ResourceConfig {
@@ -152,7 +149,7 @@ service /users on new http:Listener(9090) {
             {
                 jwtValidatorConfig: {
                     issuer: "buddhi",
-                    audience: "customer",
+                    audience: "provider",
                     signatureConfig: {
                         certFile: "resources/public.crt"
                     }
@@ -161,11 +158,10 @@ service /users on new http:Listener(9090) {
         ]
     }
 
-    // Update user by ID
-    resource function put [string id](UserInput input) returns string|error {
-        mongodb:Collection usersCollection = check self.db->getCollection("Users");
+    resource function put [string id](ProviderInput input) returns string|error {
+        mongodb:Collection usersCollection = check self.db->getCollection("ServiceProviders");
 
-        map<string> updateFields = {};
+        map<anydata> updateFields = {};
 
         if input.name != "" {
             updateFields["name"] = input.name;
@@ -182,13 +178,27 @@ service /users on new http:Listener(9090) {
         if input.password != "" {
             updateFields["password"] = input.password;
         }
+
+        if input.servicesOffered.length() > 0 {
+            updateFields["servicesOffered"] = input.servicesOffered;
+        }
+
+        if input.location.length() > 0 {
+            updateFields["location"] = input.location;
+        }
+
         if updateFields.length() == 0 {
             return error("No fields provided for update.");
         }
 
+        map<json> jsonFields = {};
+        foreach var [key, value] in updateFields.entries() {
+            jsonFields[key] = <json>value;
+        }
+
         var updateResult = check usersCollection->updateOne(
         {"id": id},
-        {"set": updateFields}
+        {"set": jsonFields}
         );
 
         if updateResult.matchedCount > 0 {
@@ -198,12 +208,12 @@ service /users on new http:Listener(9090) {
         }
     }
 
-    @http:ResourceConfig {
+     @http:ResourceConfig {
         auth: [
             {
                 jwtValidatorConfig: {
                     issuer: "buddhi",
-                    audience: "customer",
+                    audience: "provider",
                     signatureConfig: {
                         certFile: "resources/public.crt"
                     }
@@ -212,9 +222,8 @@ service /users on new http:Listener(9090) {
         ]
     }
 
-    // Delete user by ID
     resource function delete [string id]() returns string|error {
-        mongodb:Collection usersCollection = check self.db->getCollection("Users");
+        mongodb:Collection usersCollection = check self.db->getCollection("ServiceProviders");
 
         var deleteResult = check usersCollection->deleteOne({"id": id});
 
@@ -222,16 +231,19 @@ service /users on new http:Listener(9090) {
             return string `User ${id} deleted successfully.`;
         } else {
             return error("User not found.");
-        }
+        }      
     }
+
 }
 
-type UserInput record {
+type ProviderInput record {
     string name;
     string email;
-    string phone;
     string password;
+    string phone;
     string address;
+    string[] servicesOffered;
+    decimal[] location;
 };
 
 type LoginInput record {
@@ -239,11 +251,13 @@ type LoginInput record {
     string password;
 };
 
-type User record {
-    string id;
-    string name;
-    string email;
-    string phone;
-    string password;
-    string address;
+type Provider record {
+    string id?;
+    string name?;
+    string email?;
+    string password?;
+    string phone?;
+    string address?;
+    string[] servicesOffered?;
+    decimal[] location?;
 };

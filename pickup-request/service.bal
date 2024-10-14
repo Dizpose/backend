@@ -1,3 +1,14 @@
+//pickup request service for handling pickup requests from customer side.
+// The service is secured with JWT authentication.
+// Resources are:
+//     - newRequest: Create a new pickup request
+//     - request/{requestId}: Get a pickup request by ID
+//     - pendingRequests: Get all pending requests for the user
+//     - scheduledRequests: Get all scheduled requests for the user
+//     - completedRequests: Get all completed requests for the user
+//     - deleteRequest/{requestId}: Delete a pickup request by ID
+
+
 import ballerina/http;
 import ballerina/io;
 import ballerina/jwt;
@@ -67,7 +78,7 @@ final mongodb:Client mongoDb = check new ({
         {
             jwtValidatorConfig: {
                 issuer: "buddhi",
-                audience: "user-service",
+                audience: "customer",
                 signatureConfig: {
                     certFile: "resources/public.crt"
                 }

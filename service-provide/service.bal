@@ -1,3 +1,13 @@
+// servoce-provide service for handling pickup requests from provider side
+// The service is secured with JWT authentication.
+// Resources are:   
+//     - acceptRequest: Accept a pickup request
+//     - completeRequest: Complete a pickup request
+//     - filterRequests: Get pickup requests based on location and service type
+//     - acceptedRequests: Get accepted requests
+//     - completedRequests: Get completed requests
+
+
 import ballerina/http;
 import ballerina/io;
 import ballerina/jwt;
@@ -22,7 +32,8 @@ public enum WasteType {
     FURNITURE,
     PLASTIC,
     METAL,
-    ORGANIC
+    ORGANIC,
+    HAZARDOUS
 }
 
 public enum Size {
@@ -48,7 +59,7 @@ type PickupRequest record {
 type userInput record {
     string[] wasteType;
     decimal[] location;
-    decimal radius;
+    int radius;
 };
 
 final mongodb:Client mongoDb = check new ({
@@ -74,7 +85,7 @@ final mongodb:Client mongoDb = check new ({
         {
             jwtValidatorConfig: {
                 issuer: "buddhi",
-                audience: "service-provider",
+                audience: "provider",
                 signatureConfig: {
                     certFile: "resources/public.crt"
                 }
@@ -188,11 +199,8 @@ service /providerService on new http:Listener(9092) {
     // Get pickup requests based on location and service type
     resource function post filterRequests(userInput input, http:Caller caller, http:Request req) returns error? {
         string[] wasteType = input.wasteType;
-        io:println("service", wasteType);
         decimal[] location = input.location;
-        io:println("location", location);
-        decimal radius = input.radius;
-        io:println("radius", radius);
+        int radius = input.radius;
 
         mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
 

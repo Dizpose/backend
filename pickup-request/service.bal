@@ -33,7 +33,8 @@ public enum WasteType {
     FURNITURE,
     PLASTIC,
     METAL,
-    ORGANIC
+    ORGANIC,
+    HAZARDOUS
 }
 
 public enum Size {

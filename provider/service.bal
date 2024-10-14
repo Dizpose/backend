@@ -1,3 +1,13 @@
+// providers service foe handling provider registration and login.
+// The service is secured with JWT authentication.
+// Resources are:
+//     - register: Provider registration
+//     - login: Provider login
+//     - get: Get provider by ID
+//     - put: Update provider by ID
+//     - delete: Delete provider by ID
+
+
 import ballerina/crypto;
 import ballerina/http;
 import ballerina/io;

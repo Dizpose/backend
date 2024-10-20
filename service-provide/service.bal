@@ -9,7 +9,6 @@
 
 
 import ballerina/http;
-import ballerina/io;
 import ballerina/jwt;
 import ballerina/time;
 import ballerinax/mongodb;
@@ -115,11 +114,9 @@ service /providerService on new http:Listener(9092) {
         if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
             string token = authHeaderResult.substring(7);
             string providerId = check decodeToken(token);
-            io:println("id", providerId);
 
             mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
 
-            // Parse the request body to extract the scheduledDate
             json requestBody = check req.getJsonPayload();
             if requestBody.scheduledDate is string {
                 string scheduledDate = check requestBody.scheduledDate;
@@ -211,7 +208,6 @@ service /providerService on new http:Listener(9092) {
 
         mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
 
-        // Updated aggregation pipeline with $project stage
         map<json>[] aggregationPipeline = [
             {
                 "$geoNear": {

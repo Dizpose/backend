@@ -10,7 +10,6 @@
 
 import ballerina/crypto;
 import ballerina/http;
-import ballerina/io;
 import ballerina/jwt;
 import ballerina/uuid;
 import ballerinax/mongodb;
@@ -88,7 +87,6 @@ service /providers on new http:Listener(9093) {
             email: input.email
         });
         record {Provider value;}|error? result = resultStream.next();
-        io:println("Provider Result: ", result);
 
         if result is error? {
             return error(string `Invalid credentials: User with email ${input.email} not found.`);
@@ -135,7 +133,6 @@ service /providers on new http:Listener(9093) {
 
     //get provider by id
     resource function get [string id](http:Caller caller, http:Request req) returns error? {
-        io:println("Provider ID: ", id);
         mongodb:Collection usersCollection = check self.db->getCollection("ServiceProviders");
 
         map<json> filter = {

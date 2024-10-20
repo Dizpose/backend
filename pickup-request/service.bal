@@ -10,7 +10,6 @@
 
 
 import ballerina/http;
-import ballerina/io;
 import ballerina/jwt;
 import ballerina/uuid;
 import ballerinax/mongodb;
@@ -143,7 +142,7 @@ service /pickupRequest on new http:Listener(9091) {
 
     //get one request
     resource function get request/[string requestId](http:Caller caller, http:Request req) returns error? {
-        // Get the Authorization header
+
         string|http:HeaderNotFoundError authHeaderResult = req.getHeader("Authorization");
 
         if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
@@ -182,7 +181,6 @@ service /pickupRequest on new http:Listener(9091) {
         if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
             string token = authHeaderResult.substring(7);
             string userId = check decodeToken(token);
-            io:println("Fetching pending requests for user: ", userId);
 
             mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
 
@@ -307,25 +305,20 @@ service /pickupRequest on new http:Listener(9091) {
         if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
             string token = authHeaderResult.substring(7);
             string userId = check decodeToken(token);
-            io:println("Deleting Pickup Request with ID: ", requestId);
 
             mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
 
-            // Define the filter to find the request by ID and the userId
             map<json> filter = {
                 "id": requestId,
                 "userId": userId
             };
 
-            // Attempt to delete the request
             var result = pickupRequestsCollection->deleteOne(filter);
 
             if result is mongodb:DeleteResult {
                 if result.deletedCount > 0 {
-                    // Successfully deleted
                     check caller->respond("Pickup request deleted successfully.");
                 } else {
-                    // No documents matched the filter
                     return error("No pickup request found with the specified ID for the user.");
                 }
             } else if result is mongodb:DatabaseError {

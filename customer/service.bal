@@ -94,7 +94,6 @@ service /users on new http:Listener(9090) {
 
         string inputPasswordHashed = crypto:hashSha256(input.password.toBytes()).toBase64();
 
-        // Verify password
         if user.password != inputPasswordHashed {
             return error("Invalid credentials: Incorrect password.");
         }

@@ -62,6 +62,13 @@ type userInput record {
     int radius;
 };
 
+type User record {
+    string id;
+    string name;
+    string phone;
+    string address;
+};
+
 final mongodb:Client mongoDb = check new ({
     connection: {
         serverAddress: {
@@ -78,7 +85,7 @@ final mongodb:Client mongoDb = check new ({
 
 @http:ServiceConfig {
     cors: {
-        allowOrigins: ["http://localhost:8081"],
+        allowOrigins: ["http://10.0.2.2","*"],
         allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"]
     },
     auth: [
@@ -228,7 +235,8 @@ service /providerService on new http:Listener(9092) {
                     "size": 1,
                     "userId": 1,
                     "status": 1,
-                    "location": 1
+                    "location": 1,
+                    "address": 1
                 }
             }
         ];
@@ -343,6 +351,22 @@ service /providerService on new http:Listener(9092) {
         } else {
             return error("Authorization header is invalid");
         }
+    }
+
+    // get customer details
+    resource function get customerDetails/[string id]() returns User|error {
+        mongodb:Collection usersCollection = check self.db->getCollection("Users");
+
+        stream<User, error?> resultStream = check usersCollection->find({
+            id: id
+        });
+
+        record {User value;}|error? result = resultStream.next();
+
+        if result is error? {
+            return error(string `Cannot find the user with id: ${id}`);
+        }
+        return result.value;
     }
 
 }

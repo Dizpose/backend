@@ -54,6 +54,15 @@ type PickupRequest record {
     string userId?;
     RequestStatus status?;
     decimal[] location;
+    string address?;
+    string createdDate?;
+};
+
+type provider record {
+    string id;
+    string name;
+    string phone;
+    string address;
 };
 
 final mongodb:Client mongoDb = check new ({
@@ -72,7 +81,7 @@ final mongodb:Client mongoDb = check new ({
 
 @http:ServiceConfig {
     cors: {
-        allowOrigins: ["http://localhost:8081"],
+        allowOrigins: ["http://10.0.2.2","*"],
         allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"]
     },
     auth: [
@@ -116,7 +125,9 @@ service /pickupRequest on new http:Listener(9091) {
                 size: input.size,
                 status: PENDING,
                 userId: userId,
-                location: input.location
+                location: input.location,
+                address: input.address,
+                createdDate: input.createdDate
             };
 
             check pickupRequestsCollection->insertOne(newRequest);
@@ -171,6 +182,7 @@ service /pickupRequest on new http:Listener(9091) {
         if authHeaderResult is string && authHeaderResult.startsWith("Bearer ") {
             string token = authHeaderResult.substring(7);
             string userId = check decodeToken(token);
+            io:println("Fetching pending requests for user: ", userId);
 
             mongodb:Collection pickupRequestsCollection = check self.db->getCollection("PickupRequests");
 
@@ -328,6 +340,20 @@ service /pickupRequest on new http:Listener(9091) {
         } else {
             return error("Authorization header is invalid");
         }
+    }
+
+    // get provider details
+    resource isolated function get providerDetails/[string id]() returns provider|error {
+        mongodb:Collection providersCollection = check self.db->getCollection("ServiceProviders");
+        stream<provider, error?> resultStream = check providersCollection->find({
+            id: id
+        });
+
+        record {provider value;} |error? result = resultStream.next();
+        if result is error? {
+            return error("Error occurred while fetching provider details:");
+        }
+        return result.value;
     }
 
 }

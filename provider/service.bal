@@ -42,7 +42,7 @@ final mongodb:Client mongoDb = check new ({
 
 @http:ServiceConfig {
     cors: {
-        allowOrigins: ["http://localhost:8081"],
+        allowOrigins: ["http://10.0.2.2","*"],
         allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"]
     }
 }
@@ -135,6 +135,7 @@ service /providers on new http:Listener(9093) {
 
     //get provider by id
     resource function get [string id](http:Caller caller, http:Request req) returns error? {
+        io:println("Provider ID: ", id);
         mongodb:Collection usersCollection = check self.db->getCollection("ServiceProviders");
 
         map<json> filter = {

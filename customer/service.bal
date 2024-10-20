@@ -41,7 +41,7 @@ final mongodb:Client mongoDb = check new ({
 
 @http:ServiceConfig {
     cors: {
-        allowOrigins: ["http://localhost:8081"],
+        allowOrigins: ["http://10.0.2.2","*"],
         allowMethods: ["GET", "POST", "OPTIONS", "PUT", "DELETE"]
     }
 }
